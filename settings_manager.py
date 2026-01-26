@@ -2,8 +2,8 @@ import os
 import shutil
 import json
 import sqlite3
-import keyring
 from datetime import datetime
+from database import get_setting, set_setting, delete_setting
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, 
     QMessageBox, QSpinBox, QFileDialog, QGroupBox, QTabWidget, QTextEdit,
@@ -1102,18 +1102,15 @@ The token will be stored securely in your settings.
         self.loading_overlay.update_message(message)
     
     def get_secure_config(self):
-        """Get configuration from secure storage"""
+        """Get configuration from database"""
         config = {
             'local_path': self.local_path_input.text().strip(),
             'max_revisions': self.max_revisions_spin.value()
         }
         
-        # Get Dropbox token from secure storage
-        try:
-            dropbox_token = keyring.get_password("institute_app", "dropbox_token")
-            config['dropbox_token'] = dropbox_token or ""
-        except:
-            config['dropbox_token'] = ""
+        # Get Dropbox token from database
+        dropbox_token = get_setting('dropbox_token', '')
+        config['dropbox_token'] = dropbox_token
         
         return config
 
@@ -1173,8 +1170,9 @@ The token will be stored securely in your settings.
             QMessageBox.warning(self, "Restore Failed", error_msg)
 
     def load_settings(self):
-        """Load settings from file and secure storage"""
+        """Load settings from file and database"""
         try:
+            # Load non-sensitive settings from file
             if os.path.exists("settings.json"):
                 with open("settings.json", "r") as f:
                     settings = json.load(f)
@@ -1182,23 +1180,16 @@ The token will be stored securely in your settings.
                 self.local_path_input.setText(settings.get("local_path", ""))
                 self.max_revisions_spin.setValue(settings.get("max_revisions", 5))
             
-            # Load Dropbox token from secure storage
-            try:
-                dropbox_token = keyring.get_password("institute_app", "dropbox_token")
-                if dropbox_token:
-                    self.dropbox_token_input.setText(dropbox_token)
-            except Exception as e:
-                # Fallback to file storage if keyring fails
-                if os.path.exists("settings.json"):
-                    with open("settings.json", "r") as f:
-                        settings = json.load(f)
-                        self.dropbox_token_input.setText(settings.get("dropbox_token", ""))
+            # Load Dropbox token from database
+            dropbox_token = get_setting('dropbox_token', '')
+            if dropbox_token:
+                self.dropbox_token_input.setText(dropbox_token)
                         
         except Exception as e:
             self.update_status(f"Error loading settings: {e}")
 
     def save_settings(self):
-        """Save settings to file and secure storage"""
+        """Save settings to file and database"""
         try:
             # Save non-sensitive settings to file
             settings = {
@@ -1209,24 +1200,15 @@ The token will be stored securely in your settings.
             with open("settings.json", "w") as f:
                 json.dump(settings, f, indent=2)
             
-            # Save Dropbox token to secure storage
+            # Save Dropbox token to database
             dropbox_token = self.dropbox_token_input.text().strip()
             if dropbox_token:
-                try:
-                    keyring.set_password("institute_app", "dropbox_token", dropbox_token)
-                    self.update_status("Settings and Dropbox token saved securely")
-                except Exception as e:
-                    self.update_status(f"Warning: Could not save Dropbox token securely: {e}")
-                    # Fallback to file storage (less secure)
-                    settings["dropbox_token"] = dropbox_token
-                    with open("settings.json", "w") as f:
-                        json.dump(settings, f, indent=2)
+                set_setting('dropbox_token', dropbox_token)
+                self.update_status("Settings and Dropbox token saved to database")
             else:
                 # Clear token if empty
-                try:
-                    keyring.delete_password("institute_app", "dropbox_token")
-                except:
-                    pass
+                delete_setting('dropbox_token')
+                self.update_status("Settings saved. Dropbox token cleared.")
             
             QMessageBox.information(self, "Settings Saved", "Settings have been saved successfully!")
             

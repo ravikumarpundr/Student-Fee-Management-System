@@ -1,6 +1,6 @@
 import sys
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout
+    QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QPalette, QColor
@@ -16,7 +16,7 @@ class InstituteApp(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Institute Management System")
-        self.setGeometry(100, 100, 500, 600)
+        self.setGeometry(100, 100, 800, 500)
         self.setStyleSheet("""
             QWidget {
                 background-color: #f5f5f5;
@@ -35,16 +35,15 @@ class InstituteApp(QWidget):
                 background-color: #3498db;
                 color: white;
                 border: none;
-                padding: 15px;
+                padding: 18px 20px;
                 border-radius: 8px;
                 font-size: 14px;
                 font-weight: bold;
-                margin: 8px;
-                min-height: 50px;
+                min-height: 60px;
+                min-width: 200px;
             }
             QPushButton:hover {
                 background-color: #2980b9;
-                transform: translateY(-2px);
             }
             QPushButton:pressed {
                 background-color: #21618c;
@@ -75,31 +74,39 @@ class InstituteApp(QWidget):
         # Add some spacing
         layout.addSpacing(20)
 
-        # Buttons with improved styling
+        # Create grid layout for buttons (2 columns)
+        buttons_grid = QGridLayout()
+        buttons_grid.setSpacing(15)
+        buttons_grid.setContentsMargins(0, 0, 0, 0)
+
+        # Buttons with improved styling - arranged in 2 columns
         btn_course = QPushButton("📚 Course Management")
         btn_course.clicked.connect(open_course_manager)
-        layout.addWidget(btn_course)
+        buttons_grid.addWidget(btn_course, 0, 0)
 
         btn_student = QPushButton("👨‍🎓 Student Management")
         btn_student.clicked.connect(open_student_manager)
-        layout.addWidget(btn_student)
+        buttons_grid.addWidget(btn_student, 0, 1)
 
         btn_enroll = QPushButton("📝 Enroll Student")
         btn_enroll.clicked.connect(open_enroll_window)
-        layout.addWidget(btn_enroll)
+        buttons_grid.addWidget(btn_enroll, 1, 0)
 
         btn_payment = QPushButton("💰 Record Payment")
         btn_payment.clicked.connect(open_payment_window)
-        layout.addWidget(btn_payment)
+        buttons_grid.addWidget(btn_payment, 1, 1)
 
         btn_history = QPushButton("📊 Payment History")
         btn_history.clicked.connect(open_payment_history)
-        layout.addWidget(btn_history)
+        buttons_grid.addWidget(btn_history, 2, 0)
 
-        btn_settings = QPushButton("Settings")
+        btn_settings = QPushButton("⚙️ Settings")
         btn_settings.clicked.connect(open_settings_window)
-        layout.addWidget(btn_settings)
+        buttons_grid.addWidget(btn_settings, 2, 1)
 
+        # Add grid to main layout
+        layout.addLayout(buttons_grid)
+        
         # Add some bottom spacing
         layout.addStretch()
 

@@ -29,6 +29,7 @@ def initialize_db():
     create_students_table()
     create_enrollments_table()
     create_payments_table()
+    create_settings_table()
     
 def create_payments_table():
     conn = sqlite3.connect(DB_NAME)
@@ -314,5 +315,46 @@ def update_certificate_id(student_id, certificate_id):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute("UPDATE students SET certificate_id = ? WHERE id = ?", (certificate_id, student_id))
+    conn.commit()
+    conn.close()
+
+def create_settings_table():
+    """Create settings table to store application settings like Dropbox token"""
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def get_setting(key, default_value=""):
+    """Get a setting value from the database"""
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    result = c.fetchone()
+    conn.close()
+    return result[0] if result else default_value
+
+def set_setting(key, value):
+    """Set a setting value in the database"""
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("""
+        INSERT OR REPLACE INTO settings (key, value)
+        VALUES (?, ?)
+    """, (key, value))
+    conn.commit()
+    conn.close()
+
+def delete_setting(key):
+    """Delete a setting from the database"""
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("DELETE FROM settings WHERE key = ?", (key,))
     conn.commit()
     conn.close()
