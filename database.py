@@ -77,9 +77,15 @@ def create_students_table():
             name TEXT NOT NULL,
             phone TEXT NOT NULL,
             email TEXT,
-            address TEXT
+            address TEXT,
+            certificate_id TEXT
         )
     """)
+    # Add certificate_id column if it doesn't exist (for existing databases)
+    try:
+        c.execute("ALTER TABLE students ADD COLUMN certificate_id TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
     conn.commit()
     conn.close()
     
@@ -118,7 +124,7 @@ def add_student(name, phone, email, address):
 def get_students():
     conn = sqlite3.connect("institute.db")
     c = conn.cursor()
-    c.execute("SELECT id, name, phone, email, address FROM students")
+    c.execute("SELECT id, name, phone, email, address, certificate_id FROM students")
     data = c.fetchall()
     conn.close()
     return data
@@ -277,3 +283,36 @@ def unenroll_student(student_id, course_name):
     conn.commit()
     conn.close()
     return True
+
+def generate_certificate_id():
+    """Generate a unique 6-character alphanumeric certificate ID"""
+    import random
+    import string
+    
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    
+    # Generate IDs until we find a unique one
+    max_attempts = 100
+    for _ in range(max_attempts):
+        # Generate 6-character alphanumeric string (uppercase letters and digits)
+        chars = string.ascii_uppercase + string.digits
+        cert_id = ''.join(random.choice(chars) for _ in range(6))
+        
+        # Check if it's unique
+        c.execute("SELECT COUNT(*) FROM students WHERE certificate_id = ?", (cert_id,))
+        if c.fetchone()[0] == 0:
+            conn.close()
+            return cert_id
+    
+    conn.close()
+    # Fallback: use UUID if we can't generate a unique 6-char ID (very unlikely)
+    return uuid.uuid4().hex[:6].upper()
+
+def update_certificate_id(student_id, certificate_id):
+    """Update the certificate_id for a student"""
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("UPDATE students SET certificate_id = ? WHERE id = ?", (certificate_id, student_id))
+    conn.commit()
+    conn.close()

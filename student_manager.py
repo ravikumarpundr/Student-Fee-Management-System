@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
-from database import add_student, get_students, delete_student
+from database import add_student, get_students, delete_student, generate_certificate_id, update_certificate_id
 
 class StudentManager(QWidget):
     def __init__(self):
@@ -148,8 +148,8 @@ class StudentManager(QWidget):
         layout.addWidget(self.search_input)
 
         self.student_table = QTableWidget()
-        self.student_table.setColumnCount(6)
-        self.student_table.setHorizontalHeaderLabels(["ID", "Name", "Phone", "Email", "Address", "Delete"])
+        self.student_table.setColumnCount(7)
+        self.student_table.setHorizontalHeaderLabels(["ID", "Name", "Phone", "Email", "Address", "Certificate ID", "Delete"])
         self.student_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.student_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.student_table.setSelectionMode(QTableWidget.SingleSelection)
@@ -158,9 +158,11 @@ class StudentManager(QWidget):
         self.student_table.verticalHeader().setDefaultSectionSize(35)
         header = self.student_table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Stretch)
-        # Set fixed width for the delete column
+        # Set fixed width for the certificate ID and delete columns
         header.setSectionResizeMode(5, QHeaderView.Fixed)
-        self.student_table.setColumnWidth(5, 60)
+        self.student_table.setColumnWidth(5, 120)
+        header.setSectionResizeMode(6, QHeaderView.Fixed)
+        self.student_table.setColumnWidth(6, 60)
         self.student_table.itemChanged.connect(self.handle_item_changed)
         self.student_table.setSelectionMode(QAbstractItemView.NoSelection)
         layout.addWidget(self.student_table, stretch=1)
@@ -253,7 +255,7 @@ class StudentManager(QWidget):
         self.student_table.blockSignals(True)
         self.student_table.setRowCount(0)
         for stu in getattr(self, 'all_students', get_students()):
-            sid, name, phone, email, address = stu
+            sid, name, phone, email, address, certificate_id = stu
             if filter_text and filter_text not in name.lower():
                 continue
             row_idx = self.student_table.rowCount()
@@ -263,8 +265,48 @@ class StudentManager(QWidget):
             self.student_table.setItem(row_idx, 2, QTableWidgetItem(phone))
             self.student_table.setItem(row_idx, 3, QTableWidgetItem(email or ''))
             self.student_table.setItem(row_idx, 4, QTableWidgetItem(address or ''))
+            self.add_certificate_widget(row_idx, sid, certificate_id)
             self.add_delete_button(row_idx, sid)
         self.student_table.blockSignals(False)
+
+    def add_certificate_widget(self, row, student_id, certificate_id):
+        """Add certificate ID display or Generate button"""
+        if certificate_id:
+            # Show the certificate ID as text
+            item = QTableWidgetItem(certificate_id)
+            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+            self.student_table.setItem(row, 5, item)
+        else:
+            # Show Generate button
+            btn = QPushButton("Generate")
+            btn.setToolTip('Generate certificate ID')
+            btn.setFixedSize(100, 25)
+            btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #27ae60;
+                    color: white;
+                    border: none;
+                    padding: 5px 10px;
+                    border-radius: 4px;
+                    font-size: 11px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #229954;
+                }
+                QPushButton:pressed {
+                    background-color: #1e8449;
+                }
+            """)
+            btn.clicked.connect(lambda _, sid=student_id: self.generate_certificate_id(sid))
+            self.student_table.setCellWidget(row, 5, btn)
+
+    def generate_certificate_id(self, student_id):
+        """Generate and save certificate ID for a student"""
+        cert_id = generate_certificate_id()
+        update_certificate_id(student_id, cert_id)
+        self.refresh_students()
+        QMessageBox.information(self, "Success", f"Certificate ID generated: {cert_id}")
 
     def add_delete_button(self, row, student_id):
         btn = QPushButton()
@@ -297,7 +339,7 @@ class StudentManager(QWidget):
             }
         """)
         btn.clicked.connect(lambda _, sid=student_id: self.confirm_delete_student(sid))
-        self.student_table.setCellWidget(row, 5, btn)
+        self.student_table.setCellWidget(row, 6, btn)
 
     def confirm_delete_student(self, student_id):
         reply = QMessageBox.question(self, 'Confirm Delete', 'Are you sure you want to delete this student?',
@@ -307,8 +349,8 @@ class StudentManager(QWidget):
             self.refresh_students()
 
     def handle_item_changed(self, item):
-        # Prevent editing ID column
-        if item.column() == 0:
+        # Prevent editing ID column and Certificate ID column
+        if item.column() == 0 or item.column() == 5:
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
             return
         row = item.row()
