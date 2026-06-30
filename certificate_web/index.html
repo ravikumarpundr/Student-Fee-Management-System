@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Certificate Editor</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #eef2f6;
+      color: #2c3e50;
+    }
+    header {
+      background: #2c3e50;
+      color: white;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+      padding: 16px;
+      min-height: calc(100vh - 58px);
+    }
+    .canvas-wrap {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      overflow: auto;
+      padding: 20px;
+    }
+    .stage {
+      position: relative;
+      margin: 0 auto;
+      background: #f8f9fa;
+      box-shadow: inset 0 0 0 1px #dee2e6;
+    }
+    .stage img {
+      display: block;
+      width: 100%;
+      height: auto;
+      user-select: none;
+      pointer-events: none;
+    }
+    .field-box {
+      position: absolute;
+      border: none;
+      background: transparent;
+      cursor: move;
+      padding: 0;
+      overflow: visible;
+      user-select: none;
+      min-width: 8px;
+      min-height: 8px;
+      transition: outline-color 0.15s ease;
+      display: flex;
+      align-items: center;
+    }
+    .field-box .field-preview {
+      display: block;
+      width: max-content;
+      max-width: none;
+      padding: 0 2px;
+      color: #1a1a1a;
+      font-family: Helvetica, Arial, sans-serif;
+      font-weight: 600;
+      line-height: 1.15;
+      white-space: nowrap;
+      overflow: visible;
+      pointer-events: none;
+    }
+    .field-box.align-left .field-preview { text-align: left; margin-right: auto; }
+    .field-box.align-center .field-preview { text-align: center; margin-left: auto; margin-right: auto; }
+    .field-box.align-right .field-preview { text-align: right; margin-left: auto; }
+    .field-box:not(.selected):not(.edited) {
+      outline: 1px dashed rgba(52, 152, 219, 0.35);
+      outline-offset: 1px;
+    }
+    .field-box:not(.selected):not(.edited) .field-preview {
+      opacity: 0;
+    }
+    .field-box:hover:not(.selected) {
+      outline: 1px dashed rgba(52, 152, 219, 0.65);
+      outline-offset: 1px;
+    }
+    .field-box.selected {
+      outline: 2px solid rgba(52, 152, 219, 0.9);
+      outline-offset: 2px;
+      background: transparent;
+    }
+    .field-box.edited {
+      outline: 2px solid rgba(39, 174, 96, 0.75);
+      outline-offset: 2px;
+      background: transparent;
+    }
+    .field-box.selected.edited {
+      outline: 2px solid rgba(39, 174, 96, 0.9);
+    }
+    #fieldLayer {
+      position: absolute;
+      inset: 0;
+    }
+    .sidebar {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      height: fit-content;
+      position: sticky;
+      top: 16px;
+    }
+    .sidebar h2 { margin: 0 0 4px; font-size: 15px; }
+    label { font-size: 12px; font-weight: 600; display: block; margin-bottom: 4px; }
+    input, select, textarea, button {
+      width: 100%;
+      font: inherit;
+      border-radius: 6px;
+      border: 1px solid #ced4da;
+      padding: 8px 10px;
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background: #2980b9; }
+    button.primary { background: #27ae60; }
+    button.primary:hover { background: #229954; }
+    .hint {
+      font-size: 12px;
+      color: #6c757d;
+      line-height: 1.5;
+      background: #f8f9fa;
+      border-left: 3px solid #3498db;
+      padding: 10px;
+      border-radius: 6px;
+    }
+    .status {
+      font-size: 12px;
+      padding: 10px;
+      border-radius: 6px;
+      display: none;
+    }
+    .status.ok { display: block; background: #d4edda; color: #155724; }
+    .status.err { display: block; background: #f8d7da; color: #721c24; }
+    .status.connecting { display: block; background: #fff3cd; color: #856404; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Certificate Editor</h1>
+    <span id="templateName">Loading template...</span>
+  </header>
+
+  <div class="layout">
+    <div class="canvas-wrap">
+      <div id="stage" class="stage"></div>
+    </div>
+
+    <aside class="sidebar">
+      <div class="hint">
+        Click a field outline to select it. Drag to move. Text preview updates live and the box grows as you type.
+      </div>
+
+      <div>
+        <h2>Selected Field</h2>
+        <p id="selectedLabel" style="font-size:12px;color:#6c757d;margin:0 0 10px;">No field selected</p>
+        <label for="fieldText">Text</label>
+        <textarea id="fieldText" disabled></textarea>
+
+        <div class="row" style="margin-top:10px;">
+          <div>
+            <label for="fieldSize">Font size</label>
+            <input id="fieldSize" type="number" min="6" max="72" step="1" disabled />
+          </div>
+          <div>
+            <label for="fieldAlign">Alignment</label>
+            <select id="fieldAlign" disabled>
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label for="filename">Save as</label>
+        <input id="filename" type="text" placeholder="e.g. CQFR2W.pdf" />
+      </div>
+
+      <button class="primary" id="generateBtn">Generate PDF</button>
+      <div id="status" class="status"></div>
+    </aside>
+  </div>
+
+  <script>
+    let templateData = null;
+    let fields = [];
+    let selectedId = null;
+    let scale = 1;
+    let ws = null;
+    let reqId = 0;
+    const pending = new Map();
+
+    const stage = document.getElementById("stage");
+    const fieldText = document.getElementById("fieldText");
+    const fieldSize = document.getElementById("fieldSize");
+    const fieldAlign = document.getElementById("fieldAlign");
+    const selectedLabel = document.getElementById("selectedLabel");
+    const statusEl = document.getElementById("status");
+    const filenameInput = document.getElementById("filename");
+    const measureCanvas = document.createElement("canvas");
+    const measureCtx = measureCanvas.getContext("2d");
+
+    function measureTextWidthPx(text, fontSize, bold) {
+      const size = Math.max(8, fontSize * scale);
+      measureCtx.font = `${bold ? "700" : "600"} ${size}px Helvetica, Arial, sans-serif`;
+      return measureCtx.measureText(text || " ").width;
+    }
+
+    function fitBboxToText(field) {
+      const text = field.editedText || field.text || " ";
+      const bold = isBoldFont(field.font);
+      const textWidthPdf = measureTextWidthPx(text, field.fontSize, bold) / scale;
+      const padX = 6 / scale;
+      const orig = field.originalBbox;
+      const minW = Math.max(12 / scale, (orig[2] - orig[0]) * 0.35);
+      const newW = Math.max(minW, textWidthPdf + padX);
+
+      const h = orig[3] - orig[1];
+      const y0 = field.bbox[1];
+      const y1 = y0 + h;
+
+      if (field.alignment === "center") {
+        const cx = (field.bbox[0] + field.bbox[2]) / 2;
+        field.bbox = [cx - newW / 2, y0, cx + newW / 2, y1];
+      } else if (field.alignment === "right") {
+        const right = field.bbox[2];
+        field.bbox = [right - newW, y0, right, y1];
+      } else {
+        const left = field.bbox[0];
+        field.bbox = [left, y0, left + newW, y1];
+      }
+
+      field.origin = [
+        field.alignment === "left" ? field.bbox[0] : field._baseOrigin[0],
+        field._baseOrigin[1] + (field.bbox[1] - orig[1]),
+      ];
+    }
+
+    function wsUrl() {
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      return proto + "//" + location.host + "/ws";
+    }
+
+    function setStatus(message, kind) {
+      statusEl.textContent = message;
+      statusEl.className = "status " + kind;
+    }
+
+    function pdfToDisplay(bbox) {
+      return bbox.map(v => v * scale);
+    }
+
+    function displayToPdf(value) {
+      return value / scale;
+    }
+
+    function connectWebSocket() {
+      return new Promise((resolve, reject) => {
+        setStatus("Connecting to editor...", "connecting");
+        ws = new WebSocket(wsUrl());
+
+        ws.onopen = () => {
+          setStatus("Connected", "ok");
+          resolve();
+        };
+
+        ws.onerror = () => {
+          reject(new Error("WebSocket connection failed"));
+        };
+
+        ws.onclose = () => {
+          setStatus("Disconnected from server", "err");
+        };
+
+        ws.onmessage = (event) => {
+          let msg;
+          try {
+            msg = JSON.parse(event.data);
+          } catch (_) {
+            return;
+          }
+          const handler = pending.get(msg.id);
+          if (!handler) return;
+          pending.delete(msg.id);
+          if (msg.ok) handler.resolve(msg);
+          else handler.reject(new Error(msg.error || "Request failed"));
+        };
+      });
+    }
+
+    function wsRequest(action, payload = {}) {
+      return new Promise((resolve, reject) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          reject(new Error("Not connected to server"));
+          return;
+        }
+        const id = ++reqId;
+        pending.set(id, { resolve, reject });
+        ws.send(JSON.stringify({ id, action, ...payload }));
+      });
+    }
+
+    function getField(id) {
+      return fields.find(f => f.id === id);
+    }
+
+    function markEdited(field) {
+      field.edited = field.editedText.trim() !== field.text.trim()
+        || JSON.stringify(field.bbox) !== JSON.stringify(field.originalBbox)
+        || field.fontSize !== field._originalFontSize
+        || field.alignment !== field._originalAlignment;
+    }
+
+    function isBoldFont(fontName) {
+      return (fontName || "").toLowerCase().includes("bold");
+    }
+
+    function applyBoxStyle(box, field) {
+      fitBboxToText(field);
+
+      const [x0, y0, x1, y1] = pdfToDisplay(field.bbox);
+      const w = Math.max(8, x1 - x0);
+      const h = Math.max(8, y1 - y0);
+
+      box.className = "field-box align-" + field.alignment;
+      if (field.edited) box.classList.add("edited");
+      if (field.id === selectedId) box.classList.add("selected");
+
+      box.style.left = x0 + "px";
+      box.style.top = y0 + "px";
+      box.style.width = w + "px";
+      box.style.minHeight = h + "px";
+      box.style.zIndex = 10 + field.id;
+
+      let preview = box.querySelector(".field-preview");
+      if (!preview) {
+        preview = document.createElement("div");
+        preview.className = "field-preview";
+        box.appendChild(preview);
+      }
+
+      const showText = field.edited || field.id === selectedId;
+      preview.textContent = field.editedText || field.text;
+      preview.style.fontSize = Math.max(8, field.fontSize * scale) + "px";
+      preview.style.fontWeight = isBoldFont(field.font) ? "700" : "600";
+      preview.style.opacity = showText ? "1" : "0";
+
+      if (field.alignment === "center") {
+        preview.style.marginLeft = "auto";
+        preview.style.marginRight = "auto";
+      } else if (field.alignment === "right") {
+        preview.style.marginLeft = "auto";
+        preview.style.marginRight = "0";
+      } else {
+        preview.style.marginLeft = "0";
+        preview.style.marginRight = "auto";
+      }
+    }
+
+    function createFieldBox(field) {
+      const box = document.createElement("div");
+      box.dataset.id = String(field.id);
+      applyBoxStyle(box, field);
+      enableDrag(box, field);
+      box.addEventListener("click", (e) => {
+        e.stopPropagation();
+        selectField(field.id);
+      });
+      return box;
+    }
+
+    function updateFieldBox(field) {
+      const layer = document.getElementById("fieldLayer");
+      if (!layer) return;
+      let box = layer.querySelector('[data-id="' + field.id + '"]');
+      if (!box) {
+        box = createFieldBox(field);
+        layer.appendChild(box);
+      } else {
+        applyBoxStyle(box, field);
+      }
+    }
+
+    function renderFieldBoxes() {
+      let layer = document.getElementById("fieldLayer");
+      if (!layer) {
+        layer = document.createElement("div");
+        layer.id = "fieldLayer";
+        stage.appendChild(layer);
+      }
+      layer.innerHTML = "";
+      fields.forEach(field => layer.appendChild(createFieldBox(field)));
+    }
+
+    function renderStage() {
+      stage.innerHTML = "";
+      stage.style.width = templateData.displayWidth + "px";
+      stage.style.height = templateData.displayHeight + "px";
+
+      const img = document.createElement("img");
+      img.src = "/template.png?" + Date.now();
+      img.alt = "Certificate template";
+      stage.appendChild(img);
+
+      renderFieldBoxes();
+    }
+
+    function selectField(id) {
+      selectedId = id;
+      const field = getField(id);
+      if (!field) return;
+      selectedLabel.textContent = `Original: ${field.text}`;
+      fieldText.disabled = false;
+      fieldSize.disabled = false;
+      fieldAlign.disabled = false;
+      fieldText.value = field.editedText;
+      fieldSize.value = Math.round(field.fontSize);
+      fieldAlign.value = field.alignment;
+      fields.forEach(f => updateFieldBox(f));
+    }
+
+    function enableDrag(el, field) {
+      let startX = 0, startY = 0, startBbox = null;
+
+      el.addEventListener("mousedown", (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        selectField(field.id);
+        startX = e.clientX;
+        startY = e.clientY;
+        startBbox = [...field.bbox];
+
+        function onMove(ev) {
+          const dx = displayToPdf(ev.clientX - startX);
+          const dy = displayToPdf(ev.clientY - startY);
+          field.bbox = [
+            startBbox[0] + dx,
+            startBbox[1] + dy,
+            startBbox[2] + dx,
+            startBbox[3] + dy,
+          ];
+          field.origin = [
+            field.origin[0] + dx,
+            field.origin[1] + dy,
+          ];
+          markEdited(field);
+          updateFieldBox(field);
+        }
+
+        function onUp() {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+        }
+
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      });
+    }
+
+    fieldText.addEventListener("input", () => {
+      const field = getField(selectedId);
+      if (!field) return;
+      field.editedText = fieldText.value;
+      markEdited(field);
+      updateFieldBox(field);
+    });
+
+    fieldSize.addEventListener("input", () => {
+      const field = getField(selectedId);
+      if (!field) return;
+      field.fontSize = Number(fieldSize.value) || field.fontSize;
+      markEdited(field);
+      updateFieldBox(field);
+    });
+
+    fieldAlign.addEventListener("change", () => {
+      const field = getField(selectedId);
+      if (!field) return;
+      field.alignment = fieldAlign.value;
+      markEdited(field);
+      updateFieldBox(field);
+    });
+
+    stage.addEventListener("click", () => {
+      selectedId = null;
+      selectedLabel.textContent = "No field selected";
+      fieldText.disabled = true;
+      fieldSize.disabled = true;
+      fieldAlign.disabled = true;
+      fields.forEach(f => updateFieldBox(f));
+    });
+
+    async function loadTemplate() {
+      const data = await wsRequest("get_template");
+      templateData = data;
+      fields = data.fields.map(f => ({
+        ...f,
+        _originalFontSize: f.fontSize,
+        _originalAlignment: f.alignment,
+        _baseOrigin: [...f.origin],
+      }));
+      scale = data.scale;
+      document.getElementById("templateName").textContent = data.templateName;
+      renderStage();
+    }
+
+    document.getElementById("generateBtn").addEventListener("click", async () => {
+      try {
+        setStatus("Generating PDF...", "connecting");
+        const data = await wsRequest("generate", {
+          templatePath: templateData.templatePath,
+          fields,
+          filename: filenameInput.value.trim() || "certificate.pdf",
+        });
+        setStatus(data.message, "ok");
+      } catch (err) {
+        setStatus(err.message, "err");
+      }
+    });
+
+    connectWebSocket()
+      .then(loadTemplate)
+      .catch(err => setStatus(err.message, "err"));
+  </script>
+</body>
+</html>

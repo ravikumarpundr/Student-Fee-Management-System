@@ -1,0 +1,9 @@
+2026-06-30 21:12:52,549 [+] pydumpck is a multi-threads tool for decompile exe,elf,pyz,pyc packed by python which is base on pycdc and uncompyle6.sometimes its py-file result not exactly right ,maybe could use uncompyle6.
+--------------------
+pydumpck initilizing with 1.20.1 :pyinstaller_dump.py:120-20  /Users/smayra/Institute/myenv/lib/python3.13/site-packages/pydumpck/pyinstaller_dump.py on(pyinstaller_dump.run) at 74474@MainThread  
+2026-06-30 21:12:52,550 [*] plugins loaded with ['pycdc'] :__init__.py:165-10  /Users/smayra/Institute/myenv/lib/python3.13/site-packages/pydumpck/py_common_dump/__init__.py on(__init__.load_plugins) at 74474@MainThread  
+2026-06-30 21:12:52,550 [*] target file input:/Users/smayra/Institute/institute_app/__pycache__/certificate_editor.cpython-313.pyc
+to:/tmp/cert_decomp :__init__.py:206-10  /Users/smayra/Institute/myenv/lib/python3.13/site-packages/pydumpck/py_common_dump/__init__.py on(__init__.main) at 74474@MainThread  
+2026-06-30 21:12:52,550 [*] start dump target file. type:pyc :__init__.py:213-10  /Users/smayra/Institute/myenv/lib/python3.13/site-packages/pydumpck/py_common_dump/__init__.py on(__init__.main) at 74474@MainThread  
+2026-06-30 21:12:55,559 [!] Exception on decompile bytecode file:/tmp/cert_decomp/certificate_editor.cpython-313.pyc,with error:[!] invalid pyc-struct data :__init__.py:45-30  /Users/smayra/Institute/myenv/lib/python3.13/site-packages/pydumpck/py_package/package_struct/__init__.py on(__init__.decompile_pyc) at 74474@MainThread  
+2026-06-30 21:12:55,559 [+] completed,cost 3010ms with result:pyc file handled:/tmp/cert_decomp/certificate_editor.cpython-313.pyc :__init__.py:177-20  /Users/smayra/Institute/myenv/lib/python3.13/site-packages/pydumpck/py_common_dump/__init__.py on(__init__.statistics_status) at 74474@MainThread  

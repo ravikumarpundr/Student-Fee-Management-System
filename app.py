@@ -8,6 +8,7 @@ from database import initialize_db
 from course_manager import open_course_manager,open_enroll_window,open_payment_window,open_payment_history  # Assume this will be converted too
 from course_manager import open_student_manager
 from settings_manager import open_settings_window
+from certificate_editor import open_certificate_editor
 
 # Initialize DB on app startup
 initialize_db()
@@ -16,7 +17,7 @@ class InstituteApp(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Institute Management System")
-        self.setGeometry(100, 100, 800, 500)
+        self.setGeometry(100, 100, 800, 580)
         self.setStyleSheet("""
             QWidget {
                 background-color: #f5f5f5;
@@ -100,9 +101,13 @@ class InstituteApp(QWidget):
         btn_history.clicked.connect(open_payment_history)
         buttons_grid.addWidget(btn_history, 2, 0)
 
+        btn_certificate = QPushButton("📜 Certificate Generate")
+        btn_certificate.clicked.connect(open_certificate_editor)
+        buttons_grid.addWidget(btn_certificate, 2, 1)
+
         btn_settings = QPushButton("⚙️ Settings")
         btn_settings.clicked.connect(open_settings_window)
-        buttons_grid.addWidget(btn_settings, 2, 1)
+        buttons_grid.addWidget(btn_settings, 3, 0)
 
         # Add grid to main layout
         layout.addLayout(buttons_grid)

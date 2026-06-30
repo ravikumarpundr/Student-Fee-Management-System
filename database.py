@@ -113,19 +113,20 @@ def generate_student_id():
 
 def add_student(name, phone, email, address):
     student_id = generate_student_id()
+    certificate_id = generate_certificate_id()
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     c.execute('''
-        INSERT INTO students (student_id, name, phone, email, address)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (student_id, name, phone, email, address))
+        INSERT INTO students (student_id, name, phone, email, address, certificate_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (student_id, name, phone, email, address, certificate_id))
     conn.commit()
     conn.close()
 
 def get_students():
     conn = sqlite3.connect("institute.db")
     c = conn.cursor()
-    c.execute("SELECT id, name, phone, email, address, certificate_id FROM students")
+    c.execute("SELECT id, student_id, name, phone, email, address, certificate_id FROM students")
     data = c.fetchall()
     conn.close()
     return data

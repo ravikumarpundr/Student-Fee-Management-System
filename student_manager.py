@@ -1,10 +1,40 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QTableWidget, QTableWidgetItem, QMessageBox, QSizePolicy, QHeaderView, QAbstractItemView, QTabWidget
+    QPushButton, QTableWidget, QTableWidgetItem, QMessageBox, QSizePolicy, QHeaderView, QAbstractItemView, QTabWidget, QApplication
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QIcon
 from database import add_student, get_students, delete_student, generate_certificate_id, update_certificate_id
+
+
+class Toast(QLabel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setAlignment(Qt.AlignCenter)
+        self.setStyleSheet("""
+            QLabel {
+                background-color: #323232;
+                color: white;
+                padding: 10px 24px;
+                border-radius: 8px;
+                font-size: 12px;
+                font-weight: 500;
+            }
+        """)
+        self.hide()
+
+    def show_message(self, text, duration_ms=2000):
+        self.setText(text)
+        self.adjustSize()
+        parent = self.parentWidget()
+        if parent:
+            x = (parent.width() - self.width()) // 2
+            y = parent.height() - self.height() - 24
+            self.move(max(x, 0), max(y, 0))
+        self.raise_()
+        self.show()
+        QTimer.singleShot(duration_ms, self.hide)
+
 
 class StudentManager(QWidget):
     def __init__(self):
@@ -130,7 +160,15 @@ class StudentManager(QWidget):
         self.create_add_tab()
 
         self.setLayout(layout)
+        self.toast = Toast(self)
         self.refresh_students()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.toast.isVisible():
+            x = (self.width() - self.toast.width()) // 2
+            y = self.height() - self.toast.height() - 24
+            self.toast.move(max(x, 0), max(y, 0))
 
     def create_listing_tab(self):
         """Create the listing tab with search and table"""
@@ -160,7 +198,7 @@ class StudentManager(QWidget):
         header.setSectionResizeMode(QHeaderView.Stretch)
         # Set fixed width for the certificate ID and delete columns
         header.setSectionResizeMode(5, QHeaderView.Fixed)
-        self.student_table.setColumnWidth(5, 120)
+        self.student_table.setColumnWidth(5, 175)
         header.setSectionResizeMode(6, QHeaderView.Fixed)
         self.student_table.setColumnWidth(6, 60)
         self.student_table.itemChanged.connect(self.handle_item_changed)
@@ -255,12 +293,15 @@ class StudentManager(QWidget):
         self.student_table.blockSignals(True)
         self.student_table.setRowCount(0)
         for stu in getattr(self, 'all_students', get_students()):
-            sid, name, phone, email, address, certificate_id = stu
+            sid, student_id, name, phone, email, address, certificate_id = stu
             if filter_text and filter_text not in name.lower():
                 continue
             row_idx = self.student_table.rowCount()
             self.student_table.insertRow(row_idx)
-            self.student_table.setItem(row_idx, 0, QTableWidgetItem(str(sid)))
+            id_item = QTableWidgetItem(student_id or str(sid))
+            id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable)
+            id_item.setData(Qt.UserRole, sid)
+            self.student_table.setItem(row_idx, 0, id_item)
             self.student_table.setItem(row_idx, 1, QTableWidgetItem(name))
             self.student_table.setItem(row_idx, 2, QTableWidgetItem(phone))
             self.student_table.setItem(row_idx, 3, QTableWidgetItem(email or ''))
@@ -269,13 +310,62 @@ class StudentManager(QWidget):
             self.add_delete_button(row_idx, sid)
         self.student_table.blockSignals(False)
 
+    def _make_copy_button(self, text, on_copy):
+        copy_btn = QPushButton("Copy")
+        copy_btn.setObjectName("tableCopyBtn")
+        copy_btn.setToolTip("Copy certificate ID to clipboard")
+        copy_btn.setCursor(Qt.PointingHandCursor)
+        copy_btn.setFixedSize(54, 24)
+        copy_btn.setStyleSheet("""
+            QPushButton#tableCopyBtn {
+                background-color: #ffffff;
+                color: #3498db;
+                border: 1px solid #3498db;
+                border-radius: 4px;
+                font-size: 10px;
+                font-weight: 600;
+                padding: 0px 8px;
+                min-height: 0px;
+                max-height: 24px;
+            }
+            QPushButton#tableCopyBtn:hover {
+                background-color: #ebf5fb;
+                color: #217dbb;
+                border-color: #217dbb;
+            }
+            QPushButton#tableCopyBtn:pressed {
+                background-color: #d6eaf8;
+                color: #1a5276;
+                border-color: #1a5276;
+            }
+        """)
+        copy_btn.clicked.connect(lambda _, value=text: on_copy(value))
+        return copy_btn
+
+    def copy_certificate_id(self, certificate_id):
+        QApplication.clipboard().setText(certificate_id)
+        self.toast.show_message(f"Certificate ID copied: {certificate_id}")
+
     def add_certificate_widget(self, row, student_id, certificate_id):
-        """Add certificate ID display or Generate button"""
+        """Add certificate ID with copy link, or Generate button if missing"""
         if certificate_id:
-            # Show the certificate ID as text
-            item = QTableWidgetItem(certificate_id)
-            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-            self.student_table.setItem(row, 5, item)
+            container = QWidget()
+            layout = QHBoxLayout(container)
+            layout.setContentsMargins(4, 0, 4, 0)
+            layout.setSpacing(6)
+
+            cert_label = QLabel(certificate_id)
+            cert_label.setStyleSheet("""
+                color: #2c3e50;
+                font-size: 11px;
+                font-weight: 600;
+                font-family: 'Menlo', 'Consolas', monospace;
+            """)
+            layout.addWidget(cert_label)
+            layout.addWidget(self._make_copy_button(certificate_id, self.copy_certificate_id))
+            layout.addStretch()
+
+            self.student_table.setCellWidget(row, 5, container)
         else:
             # Show Generate button
             btn = QPushButton("Generate")
@@ -349,12 +439,16 @@ class StudentManager(QWidget):
             self.refresh_students()
 
     def handle_item_changed(self, item):
-        # Prevent editing ID column and Certificate ID column
-        if item.column() == 0 or item.column() == 5:
+        if item.column() == 0:
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
             return
         row = item.row()
-        sid = int(self.student_table.item(row, 0).text())
+        id_item = self.student_table.item(row, 0)
+        if not id_item:
+            return
+        sid = id_item.data(Qt.UserRole)
+        if sid is None:
+            sid = int(id_item.text())
         name = self.student_table.item(row, 1).text().strip()
         phone = self.student_table.item(row, 2).text().strip()
         email = self.student_table.item(row, 3).text().strip()
